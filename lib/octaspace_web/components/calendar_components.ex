@@ -95,13 +95,15 @@ defmodule OctaspaceWeb.CalendarUI do
   Renders a room row with day cells and reservations.
 
   ## Attributes
-    * `:room` - Room map with :name, :capacity, :type, and optional :info
+    * `:room` - Room map with :name, :capacity, :type, :prices (map of date -> price), and optional :info
+    * `:property` - Property map with :name, :icon, :color
     * `:dates` - List of dates to display as columns
 
   ## Slots
     * `:inner_block` - Reservation cards to render in this row
   """
   attr :room, :map, required: true
+  attr :property, :map, default: nil
   attr :dates, :list, required: true
   slot :inner_block
 
@@ -111,12 +113,13 @@ defmodule OctaspaceWeb.CalendarUI do
 
     ~H"""
     <div class="group col-span-full grid min-h-32 grid-cols-subgrid grid-rows-1 border-b border-base-300">
-      <.room_label room={@room} />
+      <.room_label room={@room} property={@property} />
 
       <.day_cell
         :for={{date, index} <- Enum.with_index(@dates)}
         date={date}
         day_index={index + 1}
+        price={@room[:prices][date]}
         last={index == @days - 1}
       />
 
@@ -129,6 +132,7 @@ defmodule OctaspaceWeb.CalendarUI do
   Renders the room label cell (sticky left column).
   """
   attr :room, :map, required: true
+  attr :property, :map, default: nil
 
   def room_label(assigns) do
     ~H"""
@@ -139,7 +143,53 @@ defmodule OctaspaceWeb.CalendarUI do
       </div>
       <div class="mt-1 text-xs opacity-70">{@room.type}</div>
       <div :if={@room[:info]} class="mt-1 text-xs opacity-70">{@room.info}</div>
+      <div :if={@property} class="mt-2">
+        <span class={["badge badge-sm gap-1", @property.color]}>
+          <.property_icon icon={@property.icon} />
+          {@property.name}
+        </span>
+      </div>
     </div>
+    """
+  end
+
+  defp property_icon(%{icon: :building} = assigns) do
+    ~H"""
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3">
+      <path fill-rule="evenodd" d="M4 16.5v-13h-.25a.75.75 0 0 1 0-1.5h12.5a.75.75 0 0 1 0 1.5H16v13h.25a.75.75 0 0 1 0 1.5h-3.5a.75.75 0 0 1-.75-.75v-2.5a.75.75 0 0 0-.75-.75h-2.5a.75.75 0 0 0-.75.75v2.5a.75.75 0 0 1-.75.75h-3.5a.75.75 0 0 1 0-1.5H4Zm3-11a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-1Zm.5 3.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-1Zm3.5-3.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-1Zm.5 3.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-1Z" clip-rule="evenodd" />
+    </svg>
+    """
+  end
+
+  defp property_icon(%{icon: :home} = assigns) do
+    ~H"""
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3">
+      <path fill-rule="evenodd" d="M9.293 2.293a1 1 0 0 1 1.414 0l7 7A1 1 0 0 1 17 11h-1v6a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-3a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-6H3a1 1 0 0 1-.707-1.707l7-7Z" clip-rule="evenodd" />
+    </svg>
+    """
+  end
+
+  defp property_icon(%{icon: :tree} = assigns) do
+    ~H"""
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3">
+      <path d="M10 2a.75.75 0 0 1 .673.418l6.25 12.5A.75.75 0 0 1 16.25 16H10.75v2.25a.75.75 0 0 1-1.5 0V16H3.75a.75.75 0 0 1-.673-1.082l6.25-12.5A.75.75 0 0 1 10 2Z" />
+    </svg>
+    """
+  end
+
+  defp property_icon(%{icon: :sparkles} = assigns) do
+    ~H"""
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3">
+      <path d="M10 1a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 10 1ZM5.05 3.05a.75.75 0 0 1 1.06 0l1.062 1.06A.75.75 0 1 1 6.11 5.173L5.05 4.11a.75.75 0 0 1 0-1.06ZM14.95 3.05a.75.75 0 0 1 0 1.06l-1.06 1.062a.75.75 0 0 1-1.062-1.061l1.061-1.06a.75.75 0 0 1 1.06 0ZM3 8a.75.75 0 0 1 .75-.75h1.5a.75.75 0 0 1 0 1.5h-1.5A.75.75 0 0 1 3 8ZM14 8a.75.75 0 0 1 .75-.75h1.5a.75.75 0 0 1 0 1.5h-1.5A.75.75 0 0 1 14 8ZM7.172 13.828a.75.75 0 0 1-1.061-1.06l1.06-1.062a.75.75 0 0 1 1.062 1.061l-1.06 1.06ZM10.766 10.766a.75.75 0 0 1 0 1.061l-1.06 1.06a.75.75 0 1 1-1.062-1.06l1.061-1.06a.75.75 0 0 1 1.06 0ZM10 14a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 10 14Z" />
+    </svg>
+    """
+  end
+
+  defp property_icon(assigns) do
+    ~H"""
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3">
+      <path fill-rule="evenodd" d="M4 16.5v-13h-.25a.75.75 0 0 1 0-1.5h12.5a.75.75 0 0 1 0 1.5H16v13h.25a.75.75 0 0 1 0 1.5h-3.5a.75.75 0 0 1-.75-.75v-2.5a.75.75 0 0 0-.75-.75h-2.5a.75.75 0 0 0-.75.75v2.5a.75.75 0 0 1-.75.75h-3.5a.75.75 0 0 1 0-1.5H4Z" clip-rule="evenodd" />
+    </svg>
     """
   end
 
@@ -148,6 +198,7 @@ defmodule OctaspaceWeb.CalendarUI do
   """
   attr :date, Date, required: true
   attr :day_index, :integer, required: true
+  attr :price, :integer, default: nil
   attr :last, :boolean, default: false
 
   def day_cell(assigns) do
@@ -156,12 +207,17 @@ defmodule OctaspaceWeb.CalendarUI do
       data-day-col={Date.to_iso8601(@date)}
       style={"--start-at: #{@day_index + 1};"}
       class={[
-        "relative col-start-[var(--start-at)] row-span-full ",
+        "relative col-start-[var(--start-at)] row-span-full",
         "group-hover:bg-base-200 data-[hover-current]:bg-base-300 data-[col-hovered]:bg-base-200",
         !@last && "border-r border-base-300"
       ]}
     >
-      <div class="h-full"></div>
+      <div class="flex h-full flex-col p-2">
+        <div class="flex items-start justify-between text-xs opacity-70">
+          <span>{format_day(@date)}</span>
+          <span :if={@price}>{@price}€</span>
+        </div>
+      </div>
     </div>
     """
   end
