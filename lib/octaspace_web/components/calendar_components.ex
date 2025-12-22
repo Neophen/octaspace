@@ -20,7 +20,7 @@ defmodule OctaspaceWeb.CalendarUI do
 
   def grid(assigns) do
     ~H"""
-    <div class="relative overflow-auto">
+    <calendar-column-hover class="relative block overflow-auto">
       <div
         class="min-w-[1100px]"
         style={"--left: #{@left_width}px; --days: #{@days};"}
@@ -29,7 +29,7 @@ defmodule OctaspaceWeb.CalendarUI do
           {render_slot(@inner_block)}
         </div>
       </div>
-    </div>
+    </calendar-column-hover>
     """
   end
 
@@ -71,7 +71,13 @@ defmodule OctaspaceWeb.CalendarUI do
 
   def day_header(assigns) do
     ~H"""
-    <div class={["p-3", !@last && "border-r border-base-300"]}>
+    <div
+      data-day-col={Date.to_iso8601(@date)}
+      class={[
+        "p-3  data-[col-hovered]:bg-base-200",
+        !@last && "border-r border-base-300"
+      ]}
+    >
       <div class="text-xs opacity-70">{format_month_year(@date)}</div>
       <div class="text-xs font-bold">{format_day(@date)}</div>
 
@@ -90,21 +96,29 @@ defmodule OctaspaceWeb.CalendarUI do
 
   ## Attributes
     * `:room` - Room map with :name, :capacity, :type, and optional :info
-    * `:days` - Number of days in the grid
+    * `:dates` - List of dates to display as columns
 
   ## Slots
     * `:inner_block` - Reservation cards to render in this row
   """
   attr :room, :map, required: true
-  attr :days, :integer, required: true
+  attr :dates, :list, required: true
   slot :inner_block
 
   def room_row(assigns) do
+    days = length(assigns.dates)
+    assigns = assign(assigns, :days, days)
+
     ~H"""
     <div class="group col-span-full grid min-h-32 grid-cols-subgrid grid-rows-1 border-b border-base-300">
       <.room_label room={@room} />
 
-      <.day_cell :for={day_index <- 1..@days} day_index={day_index} last={day_index == @days} />
+      <.day_cell
+        :for={{date, index} <- Enum.with_index(@dates)}
+        date={date}
+        day_index={index + 1}
+        last={index == @days - 1}
+      />
 
       {render_slot(@inner_block)}
     </div>
@@ -132,15 +146,18 @@ defmodule OctaspaceWeb.CalendarUI do
   @doc """
   Renders a single day cell background.
   """
+  attr :date, Date, required: true
   attr :day_index, :integer, required: true
   attr :last, :boolean, default: false
 
   def day_cell(assigns) do
     ~H"""
     <div
+      data-day-col={Date.to_iso8601(@date)}
       style={"--start-at: #{@day_index + 1};"}
       class={[
-        "relative col-start-[var(--start-at)] row-span-full group-hover:bg-base-200/40 hover:bg-base-300",
+        "relative col-start-[var(--start-at)] row-span-full ",
+        "group-hover:bg-base-200 data-[hover-current]:bg-base-300 data-[col-hovered]:bg-base-200",
         !@last && "border-r border-base-300"
       ]}
     >

@@ -12,11 +12,14 @@ defmodule OctaspaceWeb.CalendarLive do
 
     properties = build_mock_properties(start_date)
 
+    dates = Date.range(start_date, end_date) |> Enum.to_list()
+
     socket =
       socket
       |> assign(:start_date, start_date)
       |> assign(:end_date, end_date)
       |> assign(:days, days)
+      |> assign(:dates, dates)
       |> assign(:properties, properties)
 
     {:ok, socket}
@@ -44,7 +47,7 @@ defmodule OctaspaceWeb.CalendarLive do
       </CalendarUI.header>
 
       <%= for property <- @properties do %>
-        <CalendarUI.room_row :for={room <- property.rooms} room={room} days={@days}>
+        <CalendarUI.room_row :for={room <- property.rooms} room={room} dates={@dates}>
           <CalendarUI.reservation_card
             :for={reservation <- room.reservations}
             reservation={reservation}
