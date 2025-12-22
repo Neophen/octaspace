@@ -28,39 +28,41 @@ defmodule OctaspaceWeb.CalendarLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <CalendarUI.grid days={@days}>
-      <CalendarUI.header>
-        <:corner>
-          <div class="mt-auto text-sm font-semibold">Rooms</div>
-          <div role="tablist" class="tabs-box mt-2 tabs grid">
-            <a role="tab" class="tab-active tab">Detalus</a>
-            <a role="tab" class="tab">Overview</a>
-          </div>
-        </:corner>
+    <Layouts.app flash={@flash}>
+      <CalendarUI.grid days={@days}>
+        <CalendarUI.header>
+          <:corner>
+            <div class="mt-auto text-sm font-semibold">Rooms</div>
+            <div role="tablist" class="tabs-box mt-2 tabs grid">
+              <a role="tab" class="tab-active tab">Detalus</a>
+              <a role="tab" class="tab">Overview</a>
+            </div>
+          </:corner>
 
-        <CalendarUI.day_header
-          :for={{date, index} <- dates_with_index(@start_date, @days)}
-          date={date}
-          stats={stats_for_date(date)}
-          last={index == @days - 1}
-        />
-      </CalendarUI.header>
-
-      <%= for property <- @properties do %>
-        <CalendarUI.room_row
-          :for={room <- property.rooms}
-          room={room}
-          property={Map.take(property, [:name, :icon, :color])}
-          dates={@dates}
-        >
-          <CalendarUI.reservation_card
-            :for={reservation <- room.reservations}
-            reservation={reservation}
-            {reservation_position(reservation, @start_date, @end_date)}
+          <CalendarUI.day_header
+            :for={{date, index} <- dates_with_index(@start_date, @days)}
+            date={date}
+            stats={stats_for_date(date)}
+            last={index == @days - 1}
           />
-        </CalendarUI.room_row>
-      <% end %>
-    </CalendarUI.grid>
+        </CalendarUI.header>
+
+        <%= for property <- @properties do %>
+          <CalendarUI.room_row
+            :for={room <- property.rooms}
+            room={room}
+            property={Map.take(property, [:name, :icon, :color])}
+            dates={@dates}
+          >
+            <CalendarUI.reservation_card
+              :for={reservation <- room.reservations}
+              reservation={reservation}
+              {reservation_position(reservation, @start_date, @end_date)}
+            />
+          </CalendarUI.room_row>
+        <% end %>
+      </CalendarUI.grid>
+    </Layouts.app>
     """
   end
 
