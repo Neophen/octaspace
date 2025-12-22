@@ -20,7 +20,7 @@ defmodule OctaspaceWeb.CalendarUI do
 
   def grid(assigns) do
     ~H"""
-    <calendar-column-hover class="relative block overflow-auto">
+    <calendar-column-hover class="relative block max-h-[calc(100vh-4rem)] overflow-auto">
       <div
         class="min-w-[1100px]"
         style={"--left: #{@left_width}px; --days: #{@days};"}
