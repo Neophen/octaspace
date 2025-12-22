@@ -242,7 +242,11 @@ defmodule OctaspaceWeb.CalendarUI do
     >
       <button
         type="button"
-        class="rounded-btn w-full border border-base-300 bg-base-100 p-2 text-left shadow-sm hover:border-base-content/20 hover:shadow-md focus:outline-none focus-visible:ring focus-visible:ring-primary/30"
+        class={[
+          "rounded-btn w-full border p-2 text-left shadow-sm",
+          "hover:shadow-md focus:outline-none focus-visible:ring focus-visible:ring-primary/30",
+          status_card_class(@reservation.status)
+        ]}
       >
         <div class="flex items-start justify-between gap-2">
           <div class="min-w-0">
@@ -307,6 +311,11 @@ defmodule OctaspaceWeb.CalendarUI do
   defp status_badge_class(:pending), do: "badge-warning"
   defp status_badge_class(:cancelled), do: "badge-error"
   defp status_badge_class(_), do: "badge-neutral"
+
+  defp status_card_class(:paid), do: "bg-success/10 border-success/30 hover:border-success/50"
+  defp status_card_class(:pending), do: "bg-warning/10 border-warning/30 hover:border-warning/50"
+  defp status_card_class(:cancelled), do: "bg-error/10 border-error/30 hover:border-error/50"
+  defp status_card_class(_), do: "bg-base-100 border-base-300 hover:border-base-content/20"
 
   defp format_status(:paid), do: "Paid"
   defp format_status(:pending), do: "Pending"
