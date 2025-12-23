@@ -11,7 +11,7 @@ defmodule OctaspaceWeb.CalendarUI do
   ## Attributes
     * `:form` - The form for date range inputs
     * `:ranges` - List of range options with :value and :label keys
-    * `:range_type` - Current range type atom
+    * `:show_custom` - Whether to show custom date inputs or preset buttons
     * `:min_date` - Minimum allowed date
     * `:max_date` - Maximum allowed date
     * `:prev_info` - Map with :label and :disabled for previous button
@@ -19,7 +19,7 @@ defmodule OctaspaceWeb.CalendarUI do
   """
   attr :form, Phoenix.HTML.Form, required: true
   attr :ranges, :list, required: true
-  attr :range_type, :atom, required: true
+  attr :show_custom, :boolean, required: true
   attr :min_date, Date, required: true
   attr :max_date, Date, required: true
   attr :prev_info, :map, required: true
@@ -28,23 +28,40 @@ defmodule OctaspaceWeb.CalendarUI do
   def controls(assigns) do
     ~H"""
     <div class="flex items-center gap-4 border-b border-base-300 bg-base-100 px-4 h-12">
-      <div class="flex items-center gap-2">
-        <div class="flex gap-1">
+      <div class="flex items-center gap-2 grow">
+        <div role="tablist" class="tabs tabs-box tabs-xs">
+          <button
+            type="button"
+            role="tab"
+            phx-click="toggle-custom"
+            class={["tab", if(!@show_custom, do: "tab-active")]}
+          >
+            {dgettext("calendar", "Preset")}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            phx-click="toggle-custom"
+            class={["tab", if(@show_custom, do: "tab-active")]}
+          >
+            {dgettext("calendar", "Custom")}
+          </button>
+        </div>
+
+        <div :if={!@show_custom} class="flex gap-1">
           <button
             :for={range <- @ranges}
             type="button"
             phx-click="set-range"
             phx-value-range={range.value}
-            class={[
-              "btn btn-sm",
-              if(@range_type == range.value, do: "btn-primary", else: "btn-ghost")
-            ]}
+            class="btn btn-xs btn-ghost"
           >
             {range.label}
           </button>
         </div>
 
-        <div :if={@range_type == :custom} class="flex items-center gap-2 ml-2">
+        <div :if={@show_custom} class="flex items-center gap-2 shrink-0 grow
+        ">
           <input
             type="date"
             name={@form[:start_date].name}
@@ -62,12 +79,12 @@ defmodule OctaspaceWeb.CalendarUI do
             min={@form[:start_date].value}
             max={Date.to_iso8601(@max_date)}
             phx-blur="validate"
-            class="input input-sm input-bordered"
+            class="input input-sm input-bordered "
           />
         </div>
       </div>
 
-      <div class="ml-auto flex items-center gap-2">
+      <div class="shrink-0 flex items-center gap-2">
         <button
           type="button"
           phx-click="navigate"
@@ -195,8 +212,8 @@ defmodule OctaspaceWeb.CalendarUI do
 
   def header(assigns) do
     ~H"""
-    <div class="sticky top-0 z-30 [grid-column:1/-1] grid grid-cols-subgrid border-b border-base-300">
-      <div class="sticky left-0 px-4 py-3 bg-base-100 z-10 border-r border-base-300">
+    <div class="sticky top-0 z-30 [grid-column:1/-1] grid grid-cols-subgrid">
+      <div class="sticky left-0 px-4 py-3 bg-base-100 z-10 border-r border-b border-base-300">
         {render_slot(@corner)}
       </div>
       {render_slot(@inner_block)}
@@ -221,7 +238,7 @@ defmodule OctaspaceWeb.CalendarUI do
     ~H"""
     <div
       data-day-col={Date.to_iso8601(@date)}
-      class="p-3 bg-base-100 data-[col-hovered]:bg-base-200"
+      class="p-3 bg-base-100 data-col-hovered:bg-base-300 border-b border-base-300 data-col-hovered:border-neutral"
     >
       <div class="text-xs opacity-70">{format_month_year(@date)}</div>
       <div class="text-xs font-bold">{format_day(@date)}</div>
@@ -280,7 +297,7 @@ defmodule OctaspaceWeb.CalendarUI do
 
   def room_label(assigns) do
     ~H"""
-    <div class="sticky left-0 z-20 bg-base-100 px-4 py-4 group-hover:bg-base-300 border-r border-base-300">
+    <div class="sticky left-0 z-20 bg-base-100 px-4 py-4 group-hover:bg-base-300 border-r border-base-300 group-hover:border-neutral">
       <div class="flex items-center justify-between gap-2">
         <div class="font-semibold">{@room.name}</div>
         <span class="badge badge-outline">{@room.capacity}</span>
@@ -363,7 +380,7 @@ defmodule OctaspaceWeb.CalendarUI do
       style={"--start-at: #{@day_index + 1};"}
       class={[
         "relative col-start-[var(--start-at)] row-span-full bg-base-100",
-        "group-hover:bg-base-200 data-[hover-current]:bg-base-300 data-[col-hovered]:bg-base-200"
+        "group-hover:bg-base-200 data-hover-current:bg-base-300 data-col-hovered:bg-base-200"
       ]}
     >
       <div class="flex h-full flex-col p-2">

@@ -23,6 +23,7 @@ defmodule OctaspaceWeb.CalendarLive do
       |> assign(:min_date, min_date)
       |> assign(:max_date, max_date)
       |> assign(:range_type, :this_week)
+      |> assign(:show_custom, false)
       |> assign(:ranges, build_ranges())
       |> assign_form(start_date, end_date)
       |> update_calendar_data()
@@ -40,7 +41,7 @@ defmodule OctaspaceWeb.CalendarLive do
             <CalendarUI.controls
               form={@form}
               ranges={@ranges}
-              range_type={@range_type}
+              show_custom={@show_custom}
               min_date={@min_date}
               max_date={@max_date}
               prev_info={@prev_info}
@@ -50,10 +51,10 @@ defmodule OctaspaceWeb.CalendarLive do
 
           <CalendarUI.header>
             <:corner>
-              <div class="mt-auto text-sm font-semibold">Rooms</div>
-              <div role="tablist" class="tabs-box mt-2 tabs grid">
-                <a role="tab" class="tab-active tab">Detalus</a>
-                <a role="tab" class="tab">Overview</a>
+              <div class="mt-auto text-sm font-semibold">{dgettext("calendar", "Views")}</div>
+              <div role="tablist" class="tabs-box mt-2 tabs tabs-boxed tabs-xs grid">
+                <a role="tab" class="tab-active tab">{dgettext("calendar", "Detailed")}</a>
+                <a role="tab" class="tab">{dgettext("calendar", "Overview")}</a>
               </div>
             </:corner>
 
@@ -89,23 +90,17 @@ defmodule OctaspaceWeb.CalendarLive do
   @impl true
   def handle_event("set-range", %{"range" => range_str}, socket) do
     range_type = String.to_existing_atom(range_str)
+    {start_date, end_date} = calculate_range(range_type, socket.assigns.today)
 
-    # For custom range, keep the current dates - user will adjust via date inputs
+    # Clamp to allowed bounds
+    start_date = clamp_date(start_date, socket.assigns.min_date, socket.assigns.max_date)
+    end_date = clamp_date(end_date, socket.assigns.min_date, socket.assigns.max_date)
+
     socket =
-      if range_type == :custom do
-        assign(socket, :range_type, range_type)
-      else
-        {start_date, end_date} = calculate_range(range_type, socket.assigns.today)
-
-        # Clamp to allowed bounds
-        start_date = clamp_date(start_date, socket.assigns.min_date, socket.assigns.max_date)
-        end_date = clamp_date(end_date, socket.assigns.min_date, socket.assigns.max_date)
-
-        socket
-        |> assign(:range_type, range_type)
-        |> assign_form(start_date, end_date)
-        |> update_calendar_data()
-      end
+      socket
+      |> assign(:range_type, range_type)
+      |> assign_form(start_date, end_date)
+      |> update_calendar_data()
 
     {:noreply, socket}
   end
@@ -135,6 +130,11 @@ defmodule OctaspaceWeb.CalendarLive do
     {:noreply, navigate_range(socket, direction)}
   end
 
+  @impl true
+  def handle_event("toggle-custom", _params, socket) do
+    {:noreply, assign(socket, :show_custom, !socket.assigns.show_custom)}
+  end
+
   # Form and validation helpers
 
   defp assign_form(socket, start_date, end_date) do
@@ -152,27 +152,50 @@ defmodule OctaspaceWeb.CalendarLive do
   end
 
   defp validate_and_update(socket, params) do
-    with {:ok, start_date} <- Date.from_iso8601(params["start_date"]),
-         {:ok, end_date} <- Date.from_iso8601(params["end_date"]) do
-      # Clamp to allowed bounds
-      start_date = clamp_date(start_date, socket.assigns.min_date, socket.assigns.max_date)
-      end_date = clamp_date(end_date, socket.assigns.min_date, socket.assigns.max_date)
+    with {:ok, new_start} <- Date.from_iso8601(params["start_date"]),
+         {:ok, new_end} <- Date.from_iso8601(params["end_date"]) do
+      # Get current values to detect which field changed
+      current_start = socket.assigns.start_date
+      current_end = socket.assigns.end_date
 
-      # Ensure start <= end
+      start_changed = Date.compare(new_start, current_start) != :eq
+      end_changed = Date.compare(new_end, current_end) != :eq
+
+      # Clamp to allowed bounds
+      new_start = clamp_date(new_start, socket.assigns.min_date, socket.assigns.max_date)
+      new_end = clamp_date(new_end, socket.assigns.min_date, socket.assigns.max_date)
+
+      # Ensure start <= end (swap if needed)
       {start_date, end_date} =
-        if Date.compare(start_date, end_date) == :gt do
-          {end_date, start_date}
+        if Date.compare(new_start, new_end) == :gt do
+          {new_end, new_start}
+        else
+          {new_start, new_end}
+        end
+
+      # Ensure max range - adjust the field that didn't change
+      {start_date, end_date} =
+        if Date.diff(end_date, start_date) > @max_range_days do
+          cond do
+            start_changed and not end_changed ->
+              # Start date changed, adjust end date
+              {start_date, Date.add(start_date, @max_range_days)}
+
+            end_changed and not start_changed ->
+              # End date changed, adjust start date
+              {Date.add(end_date, -@max_range_days), end_date}
+
+            true ->
+              # Both changed or neither (fallback: adjust end date)
+              {start_date, Date.add(start_date, @max_range_days)}
+          end
         else
           {start_date, end_date}
         end
 
-      # Ensure max range
-      end_date =
-        if Date.diff(end_date, start_date) > @max_range_days do
-          Date.add(start_date, @max_range_days)
-        else
-          end_date
-        end
+      # Re-clamp after adjustment
+      start_date = clamp_date(start_date, socket.assigns.min_date, socket.assigns.max_date)
+      end_date = clamp_date(end_date, socket.assigns.min_date, socket.assigns.max_date)
 
       socket
       |> assign(:range_type, :custom)
@@ -212,8 +235,7 @@ defmodule OctaspaceWeb.CalendarLive do
       %{value: :next_week, label: dgettext("calendar", "Next week")},
       %{value: :this_month, label: dgettext("calendar", "This month")},
       %{value: :next_month, label: dgettext("calendar", "Next month")},
-      %{value: :next_3_months, label: dgettext("calendar", "3 months")},
-      %{value: :custom, label: dgettext("calendar", "Custom")}
+      %{value: :next_3_months, label: dgettext("calendar", "3 months")}
     ]
   end
 
@@ -248,10 +270,6 @@ defmodule OctaspaceWeb.CalendarLive do
     start_date = Date.beginning_of_month(today)
     end_date = today |> Date.add(90) |> Date.end_of_month()
     {start_date, end_date}
-  end
-
-  defp calculate_range(:custom, _today) do
-    {nil, nil}
   end
 
   defp navigate_range(socket, direction) do
