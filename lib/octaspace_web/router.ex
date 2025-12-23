@@ -42,7 +42,7 @@ defmodule OctaspaceWeb.Router do
       # If an authenticated user must *not* be present:
       # on_mount {OctaspaceWeb.LiveUserAuth, :live_no_user}
 
-      live "/calendar", CalendarLive
+      live "/dashboard", CalendarLive
     end
   end
 

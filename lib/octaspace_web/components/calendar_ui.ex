@@ -3,6 +3,151 @@ defmodule OctaspaceWeb.CalendarUI do
   Calendar grid components for displaying room reservations.
   """
   use Phoenix.Component
+  use Gettext, backend: OctaspaceWeb.Gettext
+
+  @doc """
+  Renders the calendar controls bar with date range selection and navigation.
+
+  ## Attributes
+    * `:form` - The form for date range inputs
+    * `:ranges` - List of range options with :value and :label keys
+    * `:range_type` - Current range type atom
+    * `:min_date` - Minimum allowed date
+    * `:max_date` - Maximum allowed date
+    * `:prev_info` - Map with :label and :disabled for previous button
+    * `:next_info` - Map with :label and :disabled for next button
+  """
+  attr :form, Phoenix.HTML.Form, required: true
+  attr :ranges, :list, required: true
+  attr :range_type, :atom, required: true
+  attr :min_date, Date, required: true
+  attr :max_date, Date, required: true
+  attr :prev_info, :map, required: true
+  attr :next_info, :map, required: true
+
+  def controls(assigns) do
+    ~H"""
+    <div class="flex items-center gap-4 border-b border-base-300 bg-base-100 px-4 h-12">
+      <div class="flex items-center gap-2">
+        <div class="flex gap-1">
+          <button
+            :for={range <- @ranges}
+            type="button"
+            phx-click="set-range"
+            phx-value-range={range.value}
+            class={[
+              "btn btn-sm",
+              if(@range_type == range.value, do: "btn-primary", else: "btn-ghost")
+            ]}
+          >
+            {range.label}
+          </button>
+        </div>
+
+        <div :if={@range_type == :custom} class="flex items-center gap-2 ml-2">
+          <input
+            type="date"
+            name={@form[:start_date].name}
+            value={@form[:start_date].value}
+            min={Date.to_iso8601(@min_date)}
+            max={@form[:end_date].value}
+            phx-blur="validate"
+            class="input input-sm input-bordered"
+          />
+          <span class="text-sm opacity-70">{dgettext("calendar", "to")}</span>
+          <input
+            type="date"
+            name={@form[:end_date].name}
+            value={@form[:end_date].value}
+            min={@form[:start_date].value}
+            max={Date.to_iso8601(@max_date)}
+            phx-blur="validate"
+            class="input input-sm input-bordered"
+          />
+        </div>
+      </div>
+
+      <div class="ml-auto flex items-center gap-2">
+        <button
+          type="button"
+          phx-click="navigate"
+          phx-value-direction="prev"
+          disabled={@prev_info.disabled}
+          class="btn btn-sm btn-ghost gap-1 disabled:opacity-50"
+          title={@prev_info.label}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+            class="size-4"
+          >
+            <path
+              fill-rule="evenodd"
+              d="M11.78 5.22a.75.75 0 0 1 0 1.06L8.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z"
+              clip-rule="evenodd"
+            />
+          </svg>
+          <span class="hidden sm:inline text-xs">{@prev_info.label}</span>
+        </button>
+
+        <div class="text-sm font-medium">
+          {format_date_range(
+            Date.from_iso8601!(@form[:start_date].value),
+            Date.from_iso8601!(@form[:end_date].value)
+          )}
+        </div>
+
+        <button
+          type="button"
+          phx-click="navigate"
+          phx-value-direction="next"
+          disabled={@next_info.disabled}
+          class="btn btn-sm btn-ghost gap-1 disabled:opacity-50"
+          title={@next_info.label}
+        >
+          <span class="hidden sm:inline text-xs">{@next_info.label}</span>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+            class="size-4"
+          >
+            <path
+              fill-rule="evenodd"
+              d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z"
+              clip-rule="evenodd"
+            />
+          </svg>
+        </button>
+      </div>
+    </div>
+    """
+  end
+
+  defp format_date_range(start_date, end_date) do
+    start_str = "#{start_date.day} #{month_name_short(start_date.month)}"
+    end_str = "#{end_date.day} #{month_name_short(end_date.month)} #{end_date.year}"
+
+    if start_date.month == end_date.month and start_date.year == end_date.year do
+      "#{start_date.day}–#{end_date.day} #{month_name_short(start_date.month)} #{start_date.year}"
+    else
+      "#{start_str} – #{end_str}"
+    end
+  end
+
+  defp month_name_short(1), do: dgettext("calendar", "Jan")
+  defp month_name_short(2), do: dgettext("calendar", "Feb")
+  defp month_name_short(3), do: dgettext("calendar", "Mar")
+  defp month_name_short(4), do: dgettext("calendar", "Apr")
+  defp month_name_short(5), do: dgettext("calendar", "May")
+  defp month_name_short(6), do: dgettext("calendar", "Jun")
+  defp month_name_short(7), do: dgettext("calendar", "Jul")
+  defp month_name_short(8), do: dgettext("calendar", "Aug")
+  defp month_name_short(9), do: dgettext("calendar", "Sep")
+  defp month_name_short(10), do: dgettext("calendar", "Oct")
+  defp month_name_short(11), do: dgettext("calendar", "Nov")
+  defp month_name_short(12), do: dgettext("calendar", "Dec")
 
   @doc """
   Renders the main calendar grid container.
@@ -16,20 +161,25 @@ defmodule OctaspaceWeb.CalendarUI do
   """
   attr :days, :integer, default: 7
   attr :left_width, :integer, default: 240
+
   slot :inner_block, required: true
+  slot :header
 
   def grid(assigns) do
     ~H"""
-    <calendar-column-hover class="relative block max-h-[calc(100vh-4rem)] overflow-auto">
-      <div
-        class="min-w-[1100px]"
-        style={"--left: #{@left_width}px; --days: #{@days};"}
-      >
-        <div class="grid grid-cols-[var(--left)_repeat(var(--days),minmax(200px,1fr))]">
-          {render_slot(@inner_block)}
+    {render_slot(@header)}
+    <div class="max-h-[calc(100vh-7rem)] overflow-auto bg-base-300">
+      <calendar-column-hover class="relative block">
+        <div
+          class="min-w-[1100px]"
+          style={"--left: #{@left_width}px; --days: #{@days};"}
+        >
+          <div class="grid grid-cols-[var(--left)_repeat(var(--days),minmax(200px,1fr))] gap-px">
+            {render_slot(@inner_block)}
+          </div>
         </div>
-      </div>
-    </calendar-column-hover>
+      </calendar-column-hover>
+    </div>
     """
   end
 
@@ -45,8 +195,8 @@ defmodule OctaspaceWeb.CalendarUI do
 
   def header(assigns) do
     ~H"""
-    <div class="sticky top-0 z-30 [grid-column:1/-1] grid grid-cols-subgrid border-b border-base-300 bg-base-100">
-      <div class="sticky left-0 z-40 border-r border-base-300 bg-base-100 px-4 py-3">
+    <div class="sticky top-0 z-30 [grid-column:1/-1] grid grid-cols-subgrid">
+      <div class="sticky left-0 px-4 py-3 bg-base-100 z-10">
         {render_slot(@corner)}
       </div>
       {render_slot(@inner_block)}
@@ -63,20 +213,15 @@ defmodule OctaspaceWeb.CalendarUI do
     * `:year` - Year
     * `:day_name` - Day of week abbreviation
     * `:stats` - List of stat maps with :label, :value, and :variant keys
-    * `:last` - Whether this is the last day (no right border)
   """
   attr :date, Date, required: true
   attr :stats, :list, default: []
-  attr :last, :boolean, default: false
 
   def day_header(assigns) do
     ~H"""
     <div
       data-day-col={Date.to_iso8601(@date)}
-      class={[
-        "p-3  data-[col-hovered]:bg-base-200",
-        !@last && "border-r border-base-300"
-      ]}
+      class="p-3 bg-base-100 data-[col-hovered]:bg-base-200"
     >
       <div class="text-xs opacity-70">{format_month_year(@date)}</div>
       <div class="text-xs font-bold">{format_day(@date)}</div>
@@ -112,7 +257,7 @@ defmodule OctaspaceWeb.CalendarUI do
     assigns = assign(assigns, :days, days)
 
     ~H"""
-    <div class="group col-span-full grid min-h-32 grid-cols-subgrid grid-rows-1 border-b border-base-300">
+    <div class="group col-span-full grid min-h-32 grid-cols-subgrid grid-rows-1">
       <.room_label room={@room} property={@property} />
 
       <.day_cell
@@ -120,7 +265,6 @@ defmodule OctaspaceWeb.CalendarUI do
         date={date}
         day_index={index + 1}
         price={@room[:prices][date]}
-        last={index == @days - 1}
       />
 
       {render_slot(@inner_block)}
@@ -136,7 +280,7 @@ defmodule OctaspaceWeb.CalendarUI do
 
   def room_label(assigns) do
     ~H"""
-    <div class="sticky left-0 z-20 border-r border-base-300 bg-base-100 px-4 py-4 group-hover:bg-base-200/60">
+    <div class="sticky left-0 z-20 bg-base-100 px-4 py-4 group-hover:bg-base-300">
       <div class="flex items-center justify-between gap-2">
         <div class="font-semibold">{@room.name}</div>
         <span class="badge badge-outline">{@room.capacity}</span>
@@ -156,7 +300,11 @@ defmodule OctaspaceWeb.CalendarUI do
   defp property_icon(%{icon: :building} = assigns) do
     ~H"""
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3">
-      <path fill-rule="evenodd" d="M4 16.5v-13h-.25a.75.75 0 0 1 0-1.5h12.5a.75.75 0 0 1 0 1.5H16v13h.25a.75.75 0 0 1 0 1.5h-3.5a.75.75 0 0 1-.75-.75v-2.5a.75.75 0 0 0-.75-.75h-2.5a.75.75 0 0 0-.75.75v2.5a.75.75 0 0 1-.75.75h-3.5a.75.75 0 0 1 0-1.5H4Zm3-11a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-1Zm.5 3.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-1Zm3.5-3.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-1Zm.5 3.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-1Z" clip-rule="evenodd" />
+      <path
+        fill-rule="evenodd"
+        d="M4 16.5v-13h-.25a.75.75 0 0 1 0-1.5h12.5a.75.75 0 0 1 0 1.5H16v13h.25a.75.75 0 0 1 0 1.5h-3.5a.75.75 0 0 1-.75-.75v-2.5a.75.75 0 0 0-.75-.75h-2.5a.75.75 0 0 0-.75.75v2.5a.75.75 0 0 1-.75.75h-3.5a.75.75 0 0 1 0-1.5H4Zm3-11a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-1Zm.5 3.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-1Zm3.5-3.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-1Zm.5 3.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-1Z"
+        clip-rule="evenodd"
+      />
     </svg>
     """
   end
@@ -164,7 +312,11 @@ defmodule OctaspaceWeb.CalendarUI do
   defp property_icon(%{icon: :home} = assigns) do
     ~H"""
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3">
-      <path fill-rule="evenodd" d="M9.293 2.293a1 1 0 0 1 1.414 0l7 7A1 1 0 0 1 17 11h-1v6a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-3a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-6H3a1 1 0 0 1-.707-1.707l7-7Z" clip-rule="evenodd" />
+      <path
+        fill-rule="evenodd"
+        d="M9.293 2.293a1 1 0 0 1 1.414 0l7 7A1 1 0 0 1 17 11h-1v6a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-3a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-6H3a1 1 0 0 1-.707-1.707l7-7Z"
+        clip-rule="evenodd"
+      />
     </svg>
     """
   end
@@ -188,7 +340,11 @@ defmodule OctaspaceWeb.CalendarUI do
   defp property_icon(assigns) do
     ~H"""
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3">
-      <path fill-rule="evenodd" d="M4 16.5v-13h-.25a.75.75 0 0 1 0-1.5h12.5a.75.75 0 0 1 0 1.5H16v13h.25a.75.75 0 0 1 0 1.5h-3.5a.75.75 0 0 1-.75-.75v-2.5a.75.75 0 0 0-.75-.75h-2.5a.75.75 0 0 0-.75.75v2.5a.75.75 0 0 1-.75.75h-3.5a.75.75 0 0 1 0-1.5H4Z" clip-rule="evenodd" />
+      <path
+        fill-rule="evenodd"
+        d="M4 16.5v-13h-.25a.75.75 0 0 1 0-1.5h12.5a.75.75 0 0 1 0 1.5H16v13h.25a.75.75 0 0 1 0 1.5h-3.5a.75.75 0 0 1-.75-.75v-2.5a.75.75 0 0 0-.75-.75h-2.5a.75.75 0 0 0-.75.75v2.5a.75.75 0 0 1-.75.75h-3.5a.75.75 0 0 1 0-1.5H4Z"
+        clip-rule="evenodd"
+      />
     </svg>
     """
   end
@@ -199,7 +355,6 @@ defmodule OctaspaceWeb.CalendarUI do
   attr :date, Date, required: true
   attr :day_index, :integer, required: true
   attr :price, :integer, default: nil
-  attr :last, :boolean, default: false
 
   def day_cell(assigns) do
     ~H"""
@@ -207,9 +362,8 @@ defmodule OctaspaceWeb.CalendarUI do
       data-day-col={Date.to_iso8601(@date)}
       style={"--start-at: #{@day_index + 1};"}
       class={[
-        "relative col-start-[var(--start-at)] row-span-full",
-        "group-hover:bg-base-200 data-[hover-current]:bg-base-300 data-[col-hovered]:bg-base-200",
-        !@last && "border-r border-base-300"
+        "relative col-start-[var(--start-at)] row-span-full bg-base-100",
+        "group-hover:bg-base-200 data-[hover-current]:bg-base-300 data-[col-hovered]:bg-base-200"
       ]}
     >
       <div class="flex h-full flex-col p-2">
