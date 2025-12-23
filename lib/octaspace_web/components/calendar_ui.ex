@@ -168,7 +168,7 @@ defmodule OctaspaceWeb.CalendarUI do
   def grid(assigns) do
     ~H"""
     {render_slot(@header)}
-    <div class="max-h-[calc(100vh-7rem)] overflow-auto bg-base-300">
+    <div class="max-h-[calc(100vh-7rem)] overflow-auto overscroll-contain bg-base-300">
       <calendar-column-hover class="relative block">
         <div
           class="min-w-[1100px]"
@@ -195,8 +195,8 @@ defmodule OctaspaceWeb.CalendarUI do
 
   def header(assigns) do
     ~H"""
-    <div class="sticky top-0 z-30 [grid-column:1/-1] grid grid-cols-subgrid">
-      <div class="sticky left-0 px-4 py-3 bg-base-100 z-10">
+    <div class="sticky top-0 z-30 [grid-column:1/-1] grid grid-cols-subgrid border-b border-base-300">
+      <div class="sticky left-0 px-4 py-3 bg-base-100 z-10 border-r border-base-300">
         {render_slot(@corner)}
       </div>
       {render_slot(@inner_block)}
@@ -280,7 +280,7 @@ defmodule OctaspaceWeb.CalendarUI do
 
   def room_label(assigns) do
     ~H"""
-    <div class="sticky left-0 z-20 bg-base-100 px-4 py-4 group-hover:bg-base-300">
+    <div class="sticky left-0 z-20 bg-base-100 px-4 py-4 group-hover:bg-base-300 border-r border-base-300">
       <div class="flex items-center justify-between gap-2">
         <div class="font-semibold">{@room.name}</div>
         <span class="badge badge-outline">{@room.capacity}</span>

@@ -89,17 +89,23 @@ defmodule OctaspaceWeb.CalendarLive do
   @impl true
   def handle_event("set-range", %{"range" => range_str}, socket) do
     range_type = String.to_existing_atom(range_str)
-    {start_date, end_date} = calculate_range(range_type, socket.assigns.today)
 
-    # Clamp to allowed bounds
-    start_date = clamp_date(start_date, socket.assigns.min_date, socket.assigns.max_date)
-    end_date = clamp_date(end_date, socket.assigns.min_date, socket.assigns.max_date)
-
+    # For custom range, keep the current dates - user will adjust via date inputs
     socket =
-      socket
-      |> assign(:range_type, range_type)
-      |> assign_form(start_date, end_date)
-      |> update_calendar_data()
+      if range_type == :custom do
+        assign(socket, :range_type, range_type)
+      else
+        {start_date, end_date} = calculate_range(range_type, socket.assigns.today)
+
+        # Clamp to allowed bounds
+        start_date = clamp_date(start_date, socket.assigns.min_date, socket.assigns.max_date)
+        end_date = clamp_date(end_date, socket.assigns.min_date, socket.assigns.max_date)
+
+        socket
+        |> assign(:range_type, range_type)
+        |> assign_form(start_date, end_date)
+        |> update_calendar_data()
+      end
 
     {:noreply, socket}
   end
@@ -107,6 +113,13 @@ defmodule OctaspaceWeb.CalendarLive do
   @impl true
   def handle_event("validate", %{"date_range" => params}, socket) do
     socket = validate_and_update(socket, params)
+    {:noreply, socket}
+  end
+
+  # Handle individual input blur events (phx-blur sends just the input value)
+  @impl true
+  def handle_event("validate", %{"value" => _value}, socket) do
+    # Individual input blur - ignore since phx-change handles form validation
     {:noreply, socket}
   end
 
