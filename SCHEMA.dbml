@@ -1,0 +1,1170 @@
+// Octaspace PMS + Channel Manager Database Schema
+// DBML Documentation: https://dbml.dbdiagram.io/docs
+
+// =============================================================================
+// CORE TENANT & AUTH
+// =============================================================================
+
+Table organizations {
+  id uuid [pk, default: `gen_random_uuid()`]
+  name varchar(255) [not null]
+  slug varchar(100) [not null, unique, note: 'URL-safe identifier, used for subdomains']
+  email varchar(255) [not null]
+  phone varchar(50)
+
+  // Subscription
+  plan plan_type [not null, default: 'free']
+  plan_expires_at timestamp
+  stripe_customer_id varchar(255)
+  stripe_subscription_id varchar(255)
+
+  // Settings
+  timezone varchar(100) [not null, default: 'UTC']
+  default_currency currency_code [not null, default: 'EUR']
+  locale varchar(10) [not null, default: 'en']
+
+  // Branding (for white-label)
+  logo_url varchar(500)
+  primary_color varchar(7) [note: 'Hex color code']
+
+  inserted_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+  deleted_at timestamp [note: 'Soft delete']
+
+  indexes {
+    slug [unique]
+    stripe_customer_id
+  }
+}
+
+Table users {
+  id uuid [pk, default: `gen_random_uuid()`]
+  organization_id uuid [not null, ref: > organizations.id]
+
+  email varchar(255) [not null]
+  name varchar(255) [not null]
+  phone varchar(50)
+  avatar_url varchar(500)
+
+  role user_role [not null, default: 'staff']
+  is_active boolean [not null, default: true]
+
+  // Auth
+  password_hash varchar(255)
+  confirmed_at timestamp
+  last_login_at timestamp
+
+  // Preferences
+  preferences jsonb [default: '{}', note: 'Calendar view settings, etc.']
+
+  inserted_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+  deleted_at timestamp
+
+  indexes {
+    (organization_id, email) [unique]
+    email
+  }
+}
+
+Table api_keys {
+  id uuid [pk, default: `gen_random_uuid()`]
+  organization_id uuid [not null, ref: > organizations.id]
+
+  name varchar(255) [not null, note: 'Human-friendly label']
+  key_hash varchar(255) [not null, unique]
+  key_prefix varchar(8) [not null, note: 'First 8 chars for identification']
+
+  scopes text[] [default: '{}', note: 'Array of allowed scopes']
+  rate_limit_per_minute int [default: 1000]
+
+  last_used_at timestamp
+  expires_at timestamp
+
+  inserted_at timestamp [not null, default: `now()`]
+  revoked_at timestamp
+
+  indexes {
+    key_hash [unique]
+    organization_id
+  }
+}
+
+// =============================================================================
+// PROPERTY & INVENTORY
+// =============================================================================
+
+Table properties {
+  id uuid [pk, default: `gen_random_uuid()`]
+  organization_id uuid [not null, ref: > organizations.id]
+
+  name varchar(255) [not null]
+  code varchar(20) [note: 'Short code like "HTL1", "SEA"']
+  description text
+
+  // Location
+  address_line1 varchar(255)
+  address_line2 varchar(255)
+  city varchar(100)
+  state varchar(100)
+  postal_code varchar(20)
+  country_code varchar(2) [note: 'ISO 3166-1 alpha-2']
+  latitude decimal(10,8)
+  longitude decimal(11,8)
+
+  // Contact
+  email varchar(255)
+  phone varchar(50)
+  website varchar(500)
+
+  // Settings
+  timezone varchar(100) [not null, default: 'UTC']
+  currency currency_code [not null, default: 'EUR']
+  check_in_time time [default: '15:00']
+  check_out_time time [default: '11:00']
+
+  // Tax
+  default_tax_rate decimal(5,2) [default: 0, note: 'Percentage']
+  city_tax_per_night decimal(10,2) [default: 0]
+  city_tax_per_person boolean [default: false]
+
+  // Display
+  icon property_icon [default: 'building']
+  color varchar(50) [default: 'badge-primary']
+  sort_order int [default: 0]
+
+  is_active boolean [not null, default: true]
+
+  inserted_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+  deleted_at timestamp
+
+  indexes {
+    organization_id
+    (organization_id, code) [unique]
+  }
+}
+
+Table room_types {
+  id uuid [pk, default: `gen_random_uuid()`]
+  property_id uuid [not null, ref: > properties.id]
+
+  name varchar(255) [not null, note: 'e.g., "Standard Double", "Family Suite"']
+  code varchar(20) [note: 'Short code like "STD", "FAM"']
+  description text
+
+  // Capacity
+  base_occupancy int [not null, default: 2, note: 'Standard occupancy']
+  max_occupancy int [not null, default: 2]
+  max_adults int [not null, default: 2]
+  max_children int [not null, default: 0]
+
+  // Physical attributes
+  size_sqm decimal(6,2) [note: 'Square meters']
+  bed_configuration varchar(100) [note: 'e.g., "1 King" or "2 Twin"']
+
+  // Unit type (for future bed-in-dorm support)
+  unit_type unit_type [not null, default: 'room']
+
+  // Display
+  sort_order int [default: 0]
+  images text[] [default: '{}', note: 'Array of image URLs']
+
+  is_active boolean [not null, default: true]
+
+  inserted_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+  deleted_at timestamp
+
+  indexes {
+    property_id
+    (property_id, code) [unique]
+  }
+}
+
+Table room_type_amenities {
+  id uuid [pk, default: `gen_random_uuid()`]
+  room_type_id uuid [not null, ref: > room_types.id]
+  amenity_id uuid [not null, ref: > amenities.id]
+
+  indexes {
+    (room_type_id, amenity_id) [unique]
+  }
+}
+
+Table amenities {
+  id uuid [pk, default: `gen_random_uuid()`]
+  organization_id uuid [ref: > organizations.id, note: 'NULL for system amenities']
+
+  name varchar(100) [not null]
+  icon varchar(50)
+  category amenity_category
+
+  indexes {
+    organization_id
+    name
+  }
+}
+
+Table units {
+  id uuid [pk, default: `gen_random_uuid()`]
+  room_type_id uuid [not null, ref: > room_types.id]
+
+  name varchar(100) [not null, note: 'e.g., "Room 101", "Bed A"']
+  code varchar(20) [note: 'Short identifier']
+  floor varchar(20)
+
+  // Physical location/notes
+  notes text [note: 'Internal notes about this specific unit']
+
+  // Status
+  status unit_status [not null, default: 'available']
+  housekeeping_status housekeeping_status [not null, default: 'clean']
+
+  // For virtual rooms (linked to physical)
+  parent_unit_id uuid [ref: > units.id, note: 'For connected/virtual rooms']
+
+  sort_order int [default: 0]
+  is_active boolean [not null, default: true]
+
+  inserted_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+  deleted_at timestamp
+
+  indexes {
+    room_type_id
+    (room_type_id, name) [unique]
+    status
+    housekeeping_status
+  }
+}
+
+// =============================================================================
+// GUESTS
+// =============================================================================
+
+Table guests {
+  id uuid [pk, default: `gen_random_uuid()`]
+  organization_id uuid [not null, ref: > organizations.id]
+
+  // Identity
+  first_name varchar(100) [not null]
+  last_name varchar(100) [not null]
+  email varchar(255)
+  phone varchar(50)
+
+  // Demographics
+  nationality varchar(2) [note: 'ISO country code']
+  date_of_birth date
+  gender varchar(20)
+
+  // Address
+  address_line1 varchar(255)
+  address_line2 varchar(255)
+  city varchar(100)
+  state varchar(100)
+  postal_code varchar(20)
+  country_code varchar(2)
+
+  // Identification
+  id_type id_document_type
+  id_number varchar(100)
+  id_expiry date
+  id_document_url varchar(500) [note: 'Uploaded scan']
+
+  // Company (for corporate bookings)
+  company_name varchar(255)
+  vat_number varchar(50)
+
+  // Preferences & Notes
+  notes text
+  preferences jsonb [default: '{}', note: 'Room preferences, dietary, etc.']
+  tags text[] [default: '{}']
+
+  // Marketing
+  marketing_consent boolean [default: false]
+
+  // Stats (denormalized for performance)
+  total_stays int [default: 0]
+  total_revenue_cents bigint [default: 0]
+  last_stay_date date
+
+  // Portal access
+  portal_password_hash varchar(255)
+  portal_last_login_at timestamp
+
+  inserted_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+  deleted_at timestamp
+
+  indexes {
+    organization_id
+    email
+    (organization_id, email) [unique]
+    last_name
+    phone
+  }
+}
+
+// =============================================================================
+// RATE MANAGEMENT
+// =============================================================================
+
+Table rate_plans {
+  id uuid [pk, default: `gen_random_uuid()`]
+  property_id uuid [not null, ref: > properties.id]
+
+  name varchar(255) [not null, note: 'e.g., "Standard Rate", "Non-Refundable"']
+  code varchar(20)
+  description text
+
+  // Type
+  rate_type rate_type [not null, default: 'per_room']
+
+  // Policy
+  cancellation_policy cancellation_policy [not null, default: 'flexible']
+  cancellation_days int [default: 1, note: 'Days before check-in for free cancellation']
+  prepayment_policy prepayment_policy [not null, default: 'none']
+
+  // Derivation (for channel-specific rates)
+  is_derived boolean [not null, default: false]
+  parent_rate_plan_id uuid [ref: > rate_plans.id]
+  derivation_type derivation_type [note: 'percentage, fixed_amount']
+  derivation_value decimal(10,2) [note: 'Positive = markup, negative = discount']
+
+  // Restrictions
+  min_stay_arrival int [default: 1]
+  max_stay int
+  closed_to_arrival boolean [default: false]
+  closed_to_departure boolean [default: false]
+
+  // Availability
+  start_date date
+  end_date date
+  days_of_week int[] [default: '{1,2,3,4,5,6,7}', note: '1=Mon, 7=Sun']
+
+  is_active boolean [not null, default: true]
+  sort_order int [default: 0]
+
+  inserted_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+  deleted_at timestamp
+
+  indexes {
+    property_id
+    (property_id, code) [unique]
+  }
+}
+
+Table rates {
+  id uuid [pk, default: `gen_random_uuid()`]
+  rate_plan_id uuid [not null, ref: > rate_plans.id]
+  room_type_id uuid [not null, ref: > room_types.id]
+  date date [not null]
+
+  // Pricing (in cents)
+  rate_cents int [not null, note: 'Base rate for standard occupancy']
+  extra_adult_cents int [default: 0]
+  extra_child_cents int [default: 0]
+  single_use_discount_cents int [default: 0, note: 'Discount for single occupancy']
+
+  // Availability
+  available_count int [note: 'Override room type availability for this date']
+
+  // Restrictions (override rate plan defaults)
+  min_stay_arrival int
+  max_stay int
+  closed_to_arrival boolean
+  closed_to_departure boolean
+  stop_sell boolean [default: false]
+
+  inserted_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (rate_plan_id, room_type_id, date) [unique]
+    date
+    room_type_id
+  }
+}
+
+// =============================================================================
+// RESERVATIONS
+// =============================================================================
+
+Table reservations {
+  id uuid [pk, default: `gen_random_uuid()`]
+  organization_id uuid [not null, ref: > organizations.id]
+  property_id uuid [not null, ref: > properties.id]
+  guest_id uuid [not null, ref: > guests.id]
+
+  // Identifiers
+  confirmation_number varchar(20) [not null, unique]
+  external_id varchar(100) [note: 'OTA booking reference']
+
+  // Source
+  source reservation_source [not null, default: 'direct']
+  channel_id uuid [ref: > channel_connections.id]
+
+  // Dates
+  check_in date [not null]
+  check_out date [not null]
+
+  // Guest count
+  adults int [not null, default: 1]
+  children int [not null, default: 0]
+  infants int [not null, default: 0]
+
+  // Status
+  status reservation_status [not null, default: 'confirmed']
+
+  // Arrival
+  arrival_time time
+  actual_arrival_at timestamp
+  actual_departure_at timestamp
+
+  // Financials (in cents, denormalized totals)
+  currency currency_code [not null, default: 'EUR']
+  accommodation_total_cents bigint [not null, default: 0]
+  extras_total_cents bigint [not null, default: 0]
+  taxes_total_cents bigint [not null, default: 0]
+  discount_cents bigint [default: 0]
+  grand_total_cents bigint [not null, default: 0]
+  amount_paid_cents bigint [not null, default: 0]
+
+  // Notes
+  guest_notes text [note: 'Notes from guest']
+  internal_notes text [note: 'Staff notes']
+
+  // Cancellation
+  cancelled_at timestamp
+  cancellation_reason text
+  cancellation_fee_cents bigint [default: 0]
+
+  // Marketing
+  promo_code varchar(50)
+
+  inserted_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+  deleted_at timestamp
+
+  indexes {
+    organization_id
+    property_id
+    guest_id
+    confirmation_number [unique]
+    external_id
+    check_in
+    check_out
+    status
+    (property_id, check_in)
+    (property_id, check_out)
+  }
+}
+
+Table reservation_rooms {
+  id uuid [pk, default: `gen_random_uuid()`]
+  reservation_id uuid [not null, ref: > reservations.id]
+  unit_id uuid [not null, ref: > units.id]
+  rate_plan_id uuid [not null, ref: > rate_plans.id]
+
+  // Guest assignment (if different from main guest)
+  guest_id uuid [ref: > guests.id]
+
+  // Dates (can differ from reservation if partial stay)
+  check_in date [not null]
+  check_out date [not null]
+
+  // Occupancy for this room
+  adults int [not null, default: 1]
+  children int [not null, default: 0]
+
+  // Pricing
+  rate_cents_per_night int [not null]
+  total_cents bigint [not null]
+
+  // Status
+  status room_assignment_status [not null, default: 'assigned']
+
+  inserted_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    reservation_id
+    unit_id
+    (unit_id, check_in)
+    (unit_id, check_out)
+  }
+}
+
+Table reservation_room_nights {
+  id uuid [pk, default: `gen_random_uuid()`]
+  reservation_room_id uuid [not null, ref: > reservation_rooms.id]
+  date date [not null]
+
+  rate_cents int [not null]
+
+  indexes {
+    (reservation_room_id, date) [unique]
+    date
+  }
+}
+
+Table reservation_articles {
+  id uuid [pk, default: `gen_random_uuid()`]
+  reservation_id uuid [not null, ref: > reservations.id]
+  article_id uuid [not null, ref: > articles.id]
+
+  description varchar(255) [note: 'Override article name if needed']
+  quantity decimal(10,2) [not null, default: 1]
+  unit_price_cents int [not null]
+  total_cents int [not null]
+
+  date date [note: 'Date the article applies to']
+
+  inserted_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    reservation_id
+    article_id
+  }
+}
+
+Table articles {
+  id uuid [pk, default: `gen_random_uuid()`]
+  organization_id uuid [not null, ref: > organizations.id]
+
+  name varchar(255) [not null]
+  code varchar(20)
+  description text
+
+  category article_category [not null, default: 'other']
+
+  // Pricing
+  price_cents int [not null]
+  price_type article_price_type [not null, default: 'fixed']
+
+  // Tax
+  tax_rate decimal(5,2) [default: 0]
+  tax_included boolean [default: true]
+
+  is_active boolean [not null, default: true]
+
+  inserted_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    organization_id
+    (organization_id, code) [unique]
+  }
+}
+
+// =============================================================================
+// PAYMENTS & INVOICES
+// =============================================================================
+
+Table payments {
+  id uuid [pk, default: `gen_random_uuid()`]
+  reservation_id uuid [not null, ref: > reservations.id]
+
+  // Amount
+  amount_cents int [not null]
+  currency currency_code [not null]
+
+  // Payment details
+  payment_method payment_method [not null]
+  payment_status payment_status [not null, default: 'pending']
+
+  // External references
+  stripe_payment_intent_id varchar(255)
+  stripe_charge_id varchar(255)
+  external_reference varchar(255) [note: 'For manual payments, bank transfer ref, etc.']
+
+  // Type
+  payment_type payment_type [not null, default: 'payment']
+
+  // Metadata
+  notes text
+  processed_by_user_id uuid [ref: > users.id]
+  processed_at timestamp
+
+  // For refunds
+  original_payment_id uuid [ref: > payments.id]
+  refund_reason text
+
+  inserted_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    reservation_id
+    stripe_payment_intent_id
+    payment_status
+  }
+}
+
+Table invoices {
+  id uuid [pk, default: `gen_random_uuid()`]
+  organization_id uuid [not null, ref: > organizations.id]
+  reservation_id uuid [ref: > reservations.id]
+
+  // Invoice number
+  invoice_number varchar(50) [not null]
+
+  // Type
+  invoice_type invoice_type [not null, default: 'invoice']
+
+  // Parties
+  guest_id uuid [ref: > guests.id]
+  billing_name varchar(255)
+  billing_address text
+  billing_vat_number varchar(50)
+
+  // Amounts
+  currency currency_code [not null]
+  subtotal_cents bigint [not null]
+  tax_cents bigint [not null]
+  total_cents bigint [not null]
+
+  // Status
+  status invoice_status [not null, default: 'draft']
+
+  // Dates
+  issue_date date [not null]
+  due_date date
+  paid_at timestamp
+
+  // File
+  pdf_url varchar(500)
+
+  // Notes
+  notes text
+  internal_notes text
+
+  inserted_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+  voided_at timestamp
+
+  indexes {
+    organization_id
+    (organization_id, invoice_number) [unique]
+    reservation_id
+    guest_id
+    status
+  }
+}
+
+Table invoice_lines {
+  id uuid [pk, default: `gen_random_uuid()`]
+  invoice_id uuid [not null, ref: > invoices.id]
+
+  description varchar(500) [not null]
+  quantity decimal(10,2) [not null, default: 1]
+  unit_price_cents int [not null]
+  tax_rate decimal(5,2) [default: 0]
+  total_cents int [not null]
+
+  // Reference
+  reservation_room_id uuid [ref: > reservation_rooms.id]
+  reservation_article_id uuid [ref: > reservation_articles.id]
+
+  sort_order int [default: 0]
+
+  inserted_at timestamp [not null, default: `now()`]
+
+  indexes {
+    invoice_id
+  }
+}
+
+// =============================================================================
+// CHANNEL MANAGER
+// =============================================================================
+
+Table channel_connections {
+  id uuid [pk, default: `gen_random_uuid()`]
+  property_id uuid [not null, ref: > properties.id]
+
+  channel channel_type [not null]
+
+  // Connection details (encrypted in practice)
+  credentials jsonb [not null, note: 'API keys, hotel IDs, etc.']
+
+  // Status
+  status connection_status [not null, default: 'pending']
+  last_sync_at timestamp
+  last_error text
+
+  // Settings
+  auto_sync_enabled boolean [not null, default: true]
+  sync_availability boolean [not null, default: true]
+  sync_rates boolean [not null, default: true]
+  sync_restrictions boolean [not null, default: true]
+
+  inserted_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    property_id
+    (property_id, channel) [unique]
+    status
+  }
+}
+
+Table channel_room_mappings {
+  id uuid [pk, default: `gen_random_uuid()`]
+  channel_connection_id uuid [not null, ref: > channel_connections.id]
+  room_type_id uuid [not null, ref: > room_types.id]
+
+  // External IDs on the channel
+  external_room_id varchar(100) [not null]
+  external_room_name varchar(255)
+
+  is_active boolean [not null, default: true]
+
+  inserted_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    channel_connection_id
+    room_type_id
+    (channel_connection_id, external_room_id) [unique]
+  }
+}
+
+Table channel_rate_mappings {
+  id uuid [pk, default: `gen_random_uuid()`]
+  channel_connection_id uuid [not null, ref: > channel_connections.id]
+  rate_plan_id uuid [not null, ref: > rate_plans.id]
+
+  // External rate plan ID on the channel
+  external_rate_id varchar(100) [not null]
+  external_rate_name varchar(255)
+
+  // Derivation from our rate plan
+  derivation_type derivation_type
+  derivation_value decimal(10,2)
+
+  is_active boolean [not null, default: true]
+
+  inserted_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    channel_connection_id
+    rate_plan_id
+    (channel_connection_id, external_rate_id) [unique]
+  }
+}
+
+Table channel_sync_logs {
+  id uuid [pk, default: `gen_random_uuid()`]
+  channel_connection_id uuid [not null, ref: > channel_connections.id]
+
+  sync_type sync_type [not null]
+  direction sync_direction [not null]
+
+  status sync_status [not null]
+
+  // What was synced
+  room_type_id uuid [ref: > room_types.id]
+  date_from date
+  date_to date
+
+  // Details
+  request_payload jsonb
+  response_payload jsonb
+  error_message text
+
+  started_at timestamp [not null]
+  completed_at timestamp
+
+  indexes {
+    channel_connection_id
+    sync_type
+    status
+    started_at
+  }
+}
+
+// =============================================================================
+// HOUSEKEEPING
+// =============================================================================
+
+Table housekeeping_tasks {
+  id uuid [pk, default: `gen_random_uuid()`]
+  unit_id uuid [not null, ref: > units.id]
+
+  task_type housekeeping_task_type [not null]
+  status task_status [not null, default: 'pending']
+  priority task_priority [not null, default: 'normal']
+
+  scheduled_date date [not null]
+  due_time time
+
+  assigned_to_user_id uuid [ref: > users.id]
+  completed_by_user_id uuid [ref: > users.id]
+  completed_at timestamp
+
+  notes text
+
+  // Linked reservation (for checkout cleaning)
+  reservation_id uuid [ref: > reservations.id]
+
+  inserted_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    unit_id
+    scheduled_date
+    status
+    assigned_to_user_id
+  }
+}
+
+// =============================================================================
+// AUDIT & ACTIVITY LOG
+// =============================================================================
+
+Table audit_logs {
+  id uuid [pk, default: `gen_random_uuid()`]
+  organization_id uuid [not null, ref: > organizations.id]
+
+  user_id uuid [ref: > users.id]
+
+  action audit_action [not null]
+  entity_type varchar(100) [not null]
+  entity_id uuid [not null]
+
+  changes jsonb [note: 'Before/after values']
+  metadata jsonb [note: 'IP, user agent, etc.']
+
+  inserted_at timestamp [not null, default: `now()`]
+
+  indexes {
+    organization_id
+    entity_type
+    entity_id
+    user_id
+    inserted_at
+  }
+}
+
+// =============================================================================
+// BOOKING WIDGET / PORTAL
+// =============================================================================
+
+Table booking_sessions {
+  id uuid [pk, default: `gen_random_uuid()`]
+  property_id uuid [not null, ref: > properties.id]
+
+  // Session data
+  session_token varchar(100) [not null, unique]
+
+  // Search criteria
+  check_in date
+  check_out date
+  adults int
+  children int
+
+  // Selected rooms (before checkout)
+  cart jsonb [default: '{}']
+
+  // Guest info (partial during booking)
+  guest_email varchar(255)
+  guest_data jsonb
+
+  // Completion
+  reservation_id uuid [ref: > reservations.id]
+  completed_at timestamp
+  abandoned_at timestamp
+
+  expires_at timestamp [not null]
+  inserted_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    session_token [unique]
+    property_id
+    expires_at
+  }
+}
+
+Table guest_portal_sessions {
+  id uuid [pk, default: `gen_random_uuid()`]
+  guest_id uuid [not null, ref: > guests.id]
+  reservation_id uuid [ref: > reservations.id]
+
+  token varchar(100) [not null, unique]
+
+  // Online check-in data
+  check_in_completed boolean [default: false]
+  check_in_data jsonb [note: 'Documents, preferences submitted']
+
+  expires_at timestamp [not null]
+  inserted_at timestamp [not null, default: `now()`]
+
+  indexes {
+    token [unique]
+    guest_id
+    reservation_id
+  }
+}
+
+// =============================================================================
+// ENUMS
+// =============================================================================
+
+enum plan_type {
+  free
+  professional
+  business
+  enterprise
+}
+
+enum user_role {
+  owner
+  admin
+  manager
+  staff
+  readonly
+}
+
+enum property_icon {
+  building
+  home
+  tree
+  sparkles
+  beach
+  mountain
+  city
+}
+
+enum unit_type {
+  room
+  bed
+  apartment
+  villa
+}
+
+enum unit_status {
+  available
+  blocked
+  maintenance
+  out_of_order
+}
+
+enum housekeeping_status {
+  clean
+  dirty
+  inspected
+  in_progress
+}
+
+enum currency_code {
+  EUR
+  USD
+  GBP
+  PLN
+  CZK
+  SEK
+  NOK
+  DKK
+  CHF
+}
+
+enum id_document_type {
+  passport
+  national_id
+  drivers_license
+  other
+}
+
+enum rate_type {
+  per_room
+  per_person
+}
+
+enum cancellation_policy {
+  free
+  flexible
+  moderate
+  strict
+  non_refundable
+}
+
+enum prepayment_policy {
+  none
+  first_night
+  full_amount
+  percentage
+}
+
+enum derivation_type {
+  percentage
+  fixed_amount
+}
+
+enum reservation_source {
+  direct
+  booking_com
+  airbnb
+  expedia
+  phone
+  walk_in
+  agent
+  other
+}
+
+enum reservation_status {
+  pending
+  confirmed
+  checked_in
+  checked_out
+  cancelled
+  no_show
+}
+
+enum room_assignment_status {
+  assigned
+  checked_in
+  checked_out
+  moved
+}
+
+enum article_category {
+  accommodation
+  food_beverage
+  tax
+  service
+  extra
+  damage
+  other
+}
+
+enum article_price_type {
+  fixed
+  per_night
+  per_person
+  per_person_per_night
+}
+
+enum payment_method {
+  cash
+  card
+  bank_transfer
+  stripe
+  booking_com
+  airbnb
+  other
+}
+
+enum payment_status {
+  pending
+  completed
+  failed
+  refunded
+  partially_refunded
+}
+
+enum payment_type {
+  payment
+  deposit
+  refund
+  chargeback
+  adjustment
+}
+
+enum invoice_type {
+  invoice
+  proforma
+  credit_note
+}
+
+enum invoice_status {
+  draft
+  issued
+  paid
+  overdue
+  voided
+}
+
+enum channel_type {
+  booking_com
+  airbnb
+  expedia
+  vrbo
+  agoda
+  hostelworld
+}
+
+enum connection_status {
+  pending
+  active
+  error
+  disabled
+}
+
+enum sync_type {
+  availability
+  rates
+  restrictions
+  reservations
+}
+
+enum sync_direction {
+  push
+  pull
+}
+
+enum sync_status {
+  pending
+  in_progress
+  completed
+  failed
+}
+
+enum amenity_category {
+  room
+  bathroom
+  entertainment
+  kitchen
+  outdoor
+  safety
+  accessibility
+  services
+}
+
+enum housekeeping_task_type {
+  checkout_clean
+  stay_over
+  deep_clean
+  inspection
+  maintenance
+  turndown
+}
+
+enum task_status {
+  pending
+  in_progress
+  completed
+  skipped
+}
+
+enum task_priority {
+  low
+  normal
+  high
+  urgent
+}
+
+enum audit_action {
+  create
+  update
+  delete
+  login
+  logout
+  sync
+  payment
+  cancel
+}
