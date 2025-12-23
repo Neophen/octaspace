@@ -57,6 +57,10 @@ defmodule OctaspaceWeb.Router do
   end
 
   scope "/", OctaspaceWeb do
+    get "/health", HealthController, :check
+  end
+
+  scope "/", OctaspaceWeb do
     pipe_through :browser
 
     get "/", PageController, :home
